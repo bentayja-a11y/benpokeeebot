@@ -368,7 +368,13 @@ class StoreWatcher:
                                      "https://www.lazada.sg/{slug}/?ajax=true&from=wangpu&langFlag=en"
                                      "&page={page}&pageTypeId=2&q={q}")
         self.pages = max(1, int(store.get("pages", 3)))
-        self.store_queries = list(store.get("queries", ["30th", "anniversary"]))
+        # searches inside the store: "30th"  or  {q: "trading card game", pages: 4}
+        self.store_queries = []
+        for q in store.get("queries", ["30th", "anniversary"]):
+            if isinstance(q, dict) and q.get("q"):
+                self.store_queries.append((str(q["q"]), max(1, int(q.get("pages", 1)))))
+            elif str(q).strip():
+                self.store_queries.append((str(q).strip(), 1))
         self.seller_names = {norm(n) for n in store.get("seller_names", [self.store_name])}
         self.seller_ids = {str(i) for i in store.get("seller_ids", [])}
         self.searches = list(c.get("searches", []))
@@ -430,28 +436,43 @@ class StoreWatcher:
         results, problems = {}, []
         blocked_any = False
 
-        def one(source: str, url: str) -> bool:
+        def one(source: str, url: str) -> list:
             nonlocal blocked_any
             data, status, blocked = self._get(url)
             items = extract_items(data) if data is not None else []
             if verbose:
-                log(f"{source:<30} {status:<10} items={len(items):<3} {'ANTI-BOT PAGE' if blocked and not items else ''}")
+                log(f"{source:<34} {status:<10} items={len(items):<3} {'ANTI-BOT PAGE' if blocked and not items else ''}")
             if items:
                 results[source] = items
-                return True
+                return items
             problems.append(f"{source}: {status}{' (anti-bot page)' if blocked else ''}")
             blocked_any = blocked_any or blocked
-            return False
+            return []
 
-        # 1) the store's own "All products" pages (official by definition)
-        for p in range(1, self.pages + 1):
-            if not one(f"store:All-Products:p{p}", self.store_page_url("All-Products", p)):
-                if p > 1:
-                    problems.pop()  # an empty later page just means we reached the end of the listing
-                break
-        # 2) searches inside the store, 3) site-wide searches (kept only if the seller is official)
-        for q in self.store_queries:
-            one(f"store:{q}", self.store_page_url(q))
+        def paged(name: str, pages: int):
+            seen_ids: set = set()
+            for p in range(1, pages + 1):
+                source = f"store:{name}:p{p}"
+                items = one(source, self.store_page_url(name, p))
+                if not items:
+                    if p > 1:
+                        problems.pop()  # an empty later page just means we reached the end of the list
+                    break
+                ids = {it["id"] for it in items}
+                if p > 1 and ids <= seen_ids:  # Lazada repeated the last page: end of the list
+                    results.pop(source, None)
+                    break
+                seen_ids |= ids
+                if p == 1:
+                    page_size = len(items)
+                elif len(items) < page_size:  # a short page is the last page
+                    break
+
+        # 1) the store's own "All products" pages, 2) searches inside the store (official by definition)
+        paged("All-Products", self.pages)
+        for q, pages in self.store_queries:
+            paged(q, pages)
+        # 3) site-wide searches: kept only if the seller is the official store
         for q in self.searches:
             one(f"search:{q}", f"https://www.lazada.sg/catalog/?ajax=true&isFirstRequest=true&page=1&q={quote_plus(q)}")
         return {"results": results, "problems": problems, "blocked": blocked_any}
@@ -532,11 +553,12 @@ class StoreWatcher:
         now_iso = self.bot.clock.now().isoformat()
         new_items, restocked, baseline_hits = [], [], []
         # sources seen for the first time are recorded silently (no flood of "new" alerts)
-        page_key = lambda s: re.sub(r":p\d+$", "", s)  # all All-Products pages share one baseline
-        order = sorted(results, key=lambda s: page_key(s) in baselined)
+        page_key = lambda s: re.sub(r":p\d+$", "", s)  # all pages of one search share one baseline
+        first_keys = {page_key(s) for s in results if page_key(s) not in baselined}  # decided BEFORE the loop
+        order = sorted(results, key=lambda s: page_key(s) not in first_keys)
         for source in order:
             key = page_key(source)
-            first_time = key not in baselined
+            first_time = key in first_keys
             for it in results[source]:
                 if not self.is_official(it, source):
                     continue
@@ -560,7 +582,7 @@ class StoreWatcher:
         if baseline_hits and not st.get("announced_watch"):
             st["announced_watch"] = True
             self.bot.notify_items(f"👀 Now watching <b>{esc(self.store_name)}</b> (official Pokémon Center SG on "
-                                  f"Lazada). Currently listed 30th-anniversary items:", baseline_hits,
+                                  f"Lazada). Items matching your filter right now:", baseline_hits,
                                   tag=False, silent=True)
         if new_items and self.alert_new:
             self.bot.notify_items("🆕 <b>New on the official Pokémon store (Lazada)</b>", new_items)
@@ -795,7 +817,7 @@ class Bot:
                   f"Store: {esc(self.watcher.store_name)}\n"
                   f"Last check: {esc(st.get('last_check', 'never')[:16].replace('T', ' '))}\n"
                   f"Next check: {esc((st.get('next_check') or 'asap')[:16].replace('T', ' '))}\n"
-                  f"Official listings tracked: {len(st['seen'])} ({hits} match your 30th filter)\n"
+                  f"Official listings tracked: {len(st['seen'])} ({hits} match your filter)\n"
                   f"Problems in a row: {st.get('fail_streak', 0)}",
                   button=("🛒 Open official store", self.store_url))
         elif cmd == "check":
@@ -896,7 +918,7 @@ def cmd_check(bot: Bot):
     for _, hit, it in sorted(official, key=lambda r: not r[1])[:40]:
         stock = {True: "in stock", False: "OUT", None: "?"}[it["in_stock"]]
         print(f"  {'★' if hit else ' '} {money(it['price']):>11}  {stock:<8}  {it['name'][:70]}")
-    print("\n★ = matches your 30th-anniversary filter (these are what you'll be tagged for)")
+    print("\n★ = matches your filter: you're tagged when these come back in stock or new ones are listed")
     if not report["results"]:
         print("\nNothing could be read. Problems:\n  " + "\n  ".join(report["problems"][:6]))
         print("If it says anti-bot page, Lazada is blocking automated checks from this network/IP. "

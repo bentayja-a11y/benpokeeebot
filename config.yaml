@@ -21,17 +21,22 @@ telegram:
 # Listings from any other seller are ignored, even if they match the keywords.
 lazada:
   enabled: true
-  check_every_minutes: 10        # minimum 5; be gentle so Lazada doesn't block you
+  check_every_minutes: 5         # minimum 5; be gentle so Lazada doesn't block you
   warn_after_failures: 3         # tells the group if Lazada blocks the watcher this many times in a row
   store:
     name: "Pokémon Store Online Singapore"
     url: "https://www.lazada.sg/shop/pokemon-store-online-singapore/"
     seller_names: ["Pokémon Store Online Singapore"]   # the bot also learns the exact name from the store page
-    pages: 3                     # how many "All products" pages to scan each check
-    queries: ["30th", "anniversary"]   # searches INSIDE the official store
-  searches: ["pokemon 30th"]     # site-wide searches; results kept only if the seller is the official store
-  match_any: ["30th", "anniversary", "celebration", "pokexciting"]   # tag only for titles containing one of these ([] = every new listing)
-  exclude_any: []                # e.g. ["sticker"] to ignore some items
+    pages: 1                     # how many "All products" pages to scan each check
+    queries:                     # searches INSIDE the official store (pages = how deep to go)
+      - {q: "trading card game", pages: 4}
+      - "30th"
+      - "anniversary"
+  searches: []                   # optional site-wide searches; results kept only if the seller is the official store
+  # Tag only for titles containing one of these ([] = every official listing).
+  # Covers all Pokémon TCG products plus 30th-anniversary merch.
+  match_any: ["trading card game", "tcg", "booster", "30th", "anniversary", "celebration", "pokexciting"]
+  exclude_any: []                # e.g. ["sleeve", "deck shield"] to ignore TCG accessories
   alert_on_new_listing: true
   alert_on_back_in_stock: true
   # Specific official-store product pages to watch for stock (paste the Lazada link):
