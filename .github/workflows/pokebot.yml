@@ -14,7 +14,7 @@ concurrency:
 
 jobs:
   tick:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 4
     steps:
       - uses: actions/checkout@v5
@@ -24,7 +24,7 @@ jobs:
           cache: pip
       - run: pip install -r requirements.txt
       - name: Restore bot memory
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v5
         with:
           path: state.json
           key: pokebot-state-${{ github.run_id }}
@@ -37,7 +37,7 @@ jobs:
         run: python pokebot.py once
       - name: Save bot memory
         if: always() && hashFiles('state.json') != ''
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v5
         with:
           path: state.json
           key: pokebot-state-${{ github.run_id }}-${{ github.run_attempt }}
