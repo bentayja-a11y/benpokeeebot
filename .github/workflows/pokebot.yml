@@ -1,0 +1,43 @@
+name: PokeBot SG
+
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pokebot
+  cancel-in-progress: false
+
+jobs:
+  tick:
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - name: Restore bot memory
+        uses: actions/cache/restore@v4
+        with:
+          path: state.json
+          key: pokebot-state-${{ github.run_id }}
+          restore-keys: pokebot-state-
+      - name: Run one round
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          TELEGRAM_TAGS: ${{ secrets.TELEGRAM_TAGS }}
+        run: python pokebot.py once
+      - name: Save bot memory
+        if: always() && hashFiles('state.json') != ''
+        uses: actions/cache/save@v4
+        with:
+          path: state.json
+          key: pokebot-state-${{ github.run_id }}-${{ github.run_attempt }}
