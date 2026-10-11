@@ -1,0 +1,76 @@
+# ───────────────────────── PokéBot SG settings ─────────────────────────
+# Times are 24-hour Singapore time, written "YYYY-MM-DD HH:MM" (keep the quotes).
+# After editing, run:  python pokebot.py schedule   to see exactly when each ping fires.
+
+timezone: Asia/Singapore
+late_limit_minutes: 120          # if the bot was off and a ping is older than this, skip it
+default_remind: ["1h", "10m", "0m"]
+
+telegram:
+  # Secrets go in .env (or GitHub secrets), NOT here:
+  #   TELEGRAM_BOT_TOKEN   TELEGRAM_CHAT_ID   TELEGRAM_TAGS
+  # Who to tag. TELEGRAM_TAGS (comma-separated) overrides this list if set.
+  #   "@username"           → tags someone with a username
+  #   "123456789:Name"      → tags someone by user ID (works even without a username)
+  tags: []
+  pin_live: false                # pin the "HAPPENING NOW" message (bot must be admin with pin rights)
+  # thread_id: 123               # only if your group uses Topics
+
+# ─────────────── Official store watcher (Lazada Singapore) ───────────────
+# Only listings sold by the official Pokémon Center Singapore store are ever reported.
+# Listings from any other seller are ignored, even if they match the keywords.
+lazada:
+  enabled: true
+  check_every_minutes: 10        # minimum 5; be gentle so Lazada doesn't block you
+  warn_after_failures: 3         # tells the group if Lazada blocks the watcher this many times in a row
+  store:
+    name: "Pokémon Store Online Singapore"
+    url: "https://www.lazada.sg/shop/pokemon-store-online-singapore/"
+    seller_names: ["Pokémon Store Online Singapore"]   # the bot also learns the exact name from the store page
+    pages: 3                     # how many "All products" pages to scan each check
+    queries: ["30th", "anniversary"]   # searches INSIDE the official store
+  searches: ["pokemon 30th"]     # site-wide searches; results kept only if the seller is the official store
+  match_any: ["30th", "anniversary", "celebration", "pokexciting"]   # tag only for titles containing one of these ([] = every new listing)
+  exclude_any: []                # e.g. ["sticker"] to ignore some items
+  alert_on_new_listing: true
+  alert_on_back_in_stock: true
+  # Specific official-store product pages to watch for stock (paste the Lazada link):
+  products: []
+  # products:
+  #   - name: "Ultra Premium Collection: Day & Night"
+  #     url: "https://www.lazada.sg/products/xxxxxxxx-i1234567890.html"
+
+# ───────────────────────────── Reminders ─────────────────────────────
+# remind:    "4h" = 4 hours before · "10m" = 10 min before · "0m" = at the time · "+9h" = 9 hours after
+# remind_at: exact extra times, e.g. ["2026-11-05 21:00"]
+# link:      button target (defaults to the official store) · enabled: false to pause an event
+events:
+  - name: "30th Celebration — Espeon ex & Umbreon ex Battle Decks"
+    when: "2026-10-30 00:00"
+    remind: ["4h", "0m", "+9h"]          # 8 PM the night before, midnight, 9 AM on the day
+    note: "International release date. The official store hasn't confirmed a Lazada listing or drop time yet — the watcher will tag you the moment it appears."
+
+  - name: "30th Celebration final wave — Ultra Premium Collection: Day & Night, Ditto Premium Collection, Mew & Mewtwo Figure Collection"
+    when: "2026-11-06 00:00"
+    remind: ["4h", "0m", "+9h"]
+    note: "International release date. Not yet confirmed on the official Lazada store — the watcher will tag you if it's listed."
+
+  - name: "Lazada 11.11 — midnight start"
+    when: "2026-11-11 00:00"
+    remind: ["4h", "1h", "10m", "0m"]
+    note: "Tap 'Collect' on Lazada's 11.11 vouchers (and any on the Pokémon store page) before you check out — only collected vouchers apply."
+
+  - name: "Lazada 11.11 — noon round"
+    when: "2026-11-11 12:00"
+    remind: ["30m", "0m"]
+
+  - name: "Lazada 11.11 — 8 PM flash rounds"
+    when: "2026-11-11 20:00"
+    remind: ["30m", "0m"]
+
+  # Template for a drop the official store announces (e.g. on @pokemonofficial.sg):
+  # - name: "Official store drop — <item>"
+  #   when: "2026-11-20 12:00"
+  #   remind: ["1d", "1h", "10m", "0m"]
+  #   link: "https://www.lazada.sg/products/xxxxxxxx-i1234567890.html"
+  #   note: "Limit 1 per customer."
